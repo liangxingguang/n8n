@@ -1661,3 +1661,59 @@ describe('getInsightsByTime', () => {
 		});
 	});
 });
+
+describe('pruneOldInsights', () => {
+	test('prune old insights', async () => {
+		// ARRANGE
+		const insightsConfig = Container.get(InsightsConfig);
+		const insightsService = Container.get(InsightsService);
+		const insightsByPeriodRepository = Container.get(InsightsByPeriodRepository);
+		insightsConfig.maxAgeDays = 10;
+
+		const project = await createTeamProject();
+		const workflow = await createWorkflow({}, project);
+
+		await createMetadata(workflow);
+
+		const timestamp = DateTime.utc().minus({ days: insightsConfig.maxAgeDays + 1 });
+		await createCompactedInsightsEvent(workflow, {
+			type: 'success',
+			value: 1,
+			periodUnit: 'day',
+			periodStart: timestamp,
+		});
+
+		// ACT
+		await insightsService.pruneInsights();
+
+		// ASSERT
+		expect(await insightsByPeriodRepository.count()).toBe(0);
+	});
+
+	test('prune old insights with recent data', async () => {
+		// ARRANGE
+		const insightsConfig = Container.get(InsightsConfig);
+		const insightsService = Container.get(InsightsService);
+		const insightsByPeriodRepository = Container.get(InsightsByPeriodRepository);
+		insightsConfig.maxAgeDays = 10;
+
+		const project = await createTeamProject();
+		const workflow = await createWorkflow({}, project);
+
+		await createMetadata(workflow);
+
+		const timestamp = DateTime.utc().minus({ days: insightsConfig.maxAgeDays - 1 });
+		await createCompactedInsightsEvent(workflow, {
+			type: 'success',
+			value: 1,
+			periodUnit: 'day',
+			periodStart: timestamp,
+		});
+
+		// ACT
+		await insightsService.pruneInsights();
+
+		// ASSERT
+		expect(await insightsByPeriodRepository.count()).toBe(1);
+	});
+});
