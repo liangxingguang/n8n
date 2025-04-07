@@ -6,8 +6,6 @@ import { LOG_DETAILS_CONTENT, type LogDetailsContent } from '@/components/Canvas
 import NodeIcon from '@/components/NodeIcon.vue';
 import { getSubtreeTotalConsumedTokens, type TreeNode } from '@/components/RunDataAi/utils';
 import { useI18n } from '@/composables/useI18n';
-import { useNodeTypesStore } from '@/stores/nodeTypes.store';
-import { useWorkflowsStore } from '@/stores/workflows.store';
 import { N8nButton, N8nText } from '@n8n/design-system';
 import { computed } from 'vue';
 
@@ -22,45 +20,31 @@ const emit = defineEmits<{ clickHeader: []; toggleInput: []; toggleOutput: [] }>
 defineSlots<{ actions: {} }>();
 
 const locale = useI18n();
-const workflowsStore = useWorkflowsStore();
-const nodeTypeStore = useNodeTypesStore();
-const node = computed(() => workflowsStore.nodesByName[logEntry.node]);
-const type = computed(() => (node.value ? nodeTypeStore.getNodeType(node.value.type) : undefined));
-const runData = computed(
-	() =>
-		(workflowsStore.workflowExecutionData?.data?.resultData.runData[logEntry.node] ?? [])[
-			logEntry.runIndex
-		],
-);
-const isError = computed(() => !!runData.value?.error);
+const type = computed(() => logEntry.type);
 const consumedTokens = computed(() => getSubtreeTotalConsumedTokens(logEntry));
+const isTriggerNode = computed(() => logEntry.type.group.includes('trigger'));
 </script>
 
 <template>
-	<div v-if="runData !== undefined" :class="$style.container" data-test-id="log-details">
+	<div :class="$style.container" data-test-id="log-details">
 		<PanelHeader data-test-id="logs-details-header" @click="emit('clickHeader')">
 			<template #title>
 				<div :class="$style.title">
 					<NodeIcon :node-type="type" :size="16" :class="$style.icon" />
-					<N8nText
-						tag="div"
-						:bold="true"
-						size="small"
-						:class="$style.name"
-						:color="isError ? 'danger' : undefined"
-						>{{ node.name }}</N8nText
-					>
+					<N8nText tag="div" :bold="true" size="small" :class="$style.name">
+						{{ logEntry.node.name }}
+					</N8nText>
 					<ExecutionSummary
 						v-if="isOpen"
 						:class="$style.executionSummary"
-						:status="runData.executionStatus ?? 'unknown'"
+						:status="logEntry.runData.executionStatus ?? 'unknown'"
 						:consumed-tokens="consumedTokens"
-						:time-took="runData.executionTime"
+						:time-took="logEntry.runData.executionTime"
 					/>
 				</div>
 			</template>
 			<template #actions>
-				<div v-if="isOpen" :class="$style.actions">
+				<div v-if="isOpen && !isTriggerNode" :class="$style.actions">
 					<N8nButton
 						size="mini"
 						type="secondary"
@@ -83,16 +67,18 @@ const consumedTokens = computed(() => getSubtreeTotalConsumedTokens(logEntry));
 		</PanelHeader>
 		<div v-if="isOpen" :class="$style.content" data-test-id="logs-details-body">
 			<RunDataView
-				v-if="content !== LOG_DETAILS_CONTENT.OUTPUT"
+				v-if="!isTriggerNode && content !== LOG_DETAILS_CONTENT.OUTPUT"
+				pane-type="input"
 				:class="$style.runDataView"
 				:title="locale.baseText('logs.details.header.actions.input')"
-				:data="runData"
+				:log-entry="logEntry"
 			/>
 			<RunDataView
-				v-if="content !== LOG_DETAILS_CONTENT.INPUT"
+				v-if="isTriggerNode || content !== LOG_DETAILS_CONTENT.INPUT"
+				pane-type="output"
 				:class="$style.runDataView"
 				:title="locale.baseText('logs.details.header.actions.output')"
-				:data="runData"
+				:log-entry="logEntry"
 			/>
 		</div>
 	</div>
@@ -122,8 +108,11 @@ const consumedTokens = computed(() => getSubtreeTotalConsumedTokens(logEntry));
 .title {
 	display: flex;
 	align-items: center;
-	gap: var(--spacing-2xs);
 	flex-shrink: 1;
+}
+
+.icon {
+	margin-right: var(--spacing-2xs);
 }
 
 .name {
@@ -137,9 +126,11 @@ const consumedTokens = computed(() => getSubtreeTotalConsumedTokens(logEntry));
 }
 
 .content {
+	flex-shrink: 1;
 	flex-grow: 1;
 	display: flex;
 	align-items: stretch;
+	overflow: hidden;
 
 	& > *:not(:last-child) {
 		border-right: var(--border-base);

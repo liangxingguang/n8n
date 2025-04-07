@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { type TreeNode as ElTreeNode } from 'element-plus';
 import { getSubtreeTotalConsumedTokens, type TreeNode } from '@/components/RunDataAi/utils';
-import { useWorkflowsStore } from '@/stores/workflows.store';
 import { computed } from 'vue';
-import { type INodeUi } from '@/Interface';
 import { N8nButton, N8nIcon, N8nIconButton, N8nText } from '@n8n/design-system';
-import { type ITaskData } from 'n8n-workflow';
-import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 import { upperFirst } from 'lodash-es';
 import { useI18n } from '@/composables/useI18n';
 import ConsumedTokenCountText from '@/components/CanvasChat/future/components/ConsumedTokenCountText.vue';
@@ -28,26 +24,16 @@ const emit = defineEmits<{
 }>();
 
 const locale = useI18n();
-const workflowsStore = useWorkflowsStore();
-const nodeTypeStore = useNodeTypesStore();
-const node = computed<INodeUi | undefined>(() => workflowsStore.nodesByName[props.data.node]);
-const runData = computed<ITaskData | undefined>(() =>
-	node.value
-		? workflowsStore.workflowExecutionData?.data?.resultData.runData[node.value.name]?.[
-				props.data.runIndex
-			]
-		: undefined,
-);
-const type = computed(() => (node.value ? nodeTypeStore.getNodeType(node.value.type) : undefined));
+const runData = computed(() => props.data.runData);
 const depth = computed(() => (props.node.level ?? 1) - 1);
 const isSettled = computed(
 	() =>
-		runData.value?.executionStatus &&
+		runData.value.executionStatus &&
 		['crashed', 'error', 'success'].includes(runData.value.executionStatus),
 );
-const isError = computed(() => !!runData.value?.error);
+const isError = computed(() => !!runData.value.error);
 const startedAtText = computed(() => {
-	const time = new Date(runData.value?.startTime ?? 0);
+	const time = new Date(runData.value.startTime ?? 0);
 
 	return locale.baseText('logs.overview.body.started', {
 		interpolate: {
@@ -99,14 +85,14 @@ function isLastChild(level: number) {
 			/>
 		</template>
 		<div :class="$style.background" :style="{ '--indent-depth': depth }" />
-		<NodeIcon :node-type="type" :size="16" :class="$style.icon" />
+		<NodeIcon :node-type="props.data.type" :size="16" :class="$style.icon" />
 		<N8nText
 			tag="div"
 			:bold="true"
 			size="small"
 			:class="$style.name"
 			:color="isError ? 'danger' : undefined"
-			>{{ node.name }}</N8nText
+			>{{ props.data.node.name }}</N8nText
 		>
 		<N8nText tag="div" color="text-light" size="small" :class="$style.timeTook">
 			<I18nT v-if="isSettled && runData" keypath="logs.overview.body.summaryText">
@@ -254,6 +240,7 @@ function isLastChild(level: number) {
 }
 
 .name {
+	flex-basis: 0;
 	flex-grow: 1;
 	padding-inline-start: 0;
 }
@@ -266,6 +253,10 @@ function isLastChild(level: number) {
 	.errorIcon {
 		margin-right: var(--spacing-4xs);
 		vertical-align: text-bottom;
+	}
+
+	.compact & {
+		flex-shrink: 1;
 	}
 
 	.compact:hover & {
@@ -292,6 +283,10 @@ function isLastChild(level: number) {
 	flex-shrink: 0;
 	width: 10%;
 	text-align: right;
+
+	.compact {
+		flex-shrink: 1;
+	}
 
 	.compact:hover & {
 		width: auto;

@@ -19,6 +19,8 @@ import { useRunWorkflow } from '@/composables/useRunWorkflow';
 import { useNDVStore } from '@/stores/ndv.store';
 import { useRouter } from 'vue-router';
 import ExecutionSummary from '@/components/CanvasChat/future/components/ExecutionSummary.vue';
+import { refDebounced } from '@vueuse/core';
+import { useNodeTypesStore } from '@/stores/nodeTypes.store';
 
 const { isOpen, selected } = defineProps<{
 	isOpen: boolean;
@@ -36,20 +38,23 @@ const router = useRouter();
 const runWorkflow = useRunWorkflow({ router });
 const ndvStore = useNDVStore();
 const nodeHelpers = useNodeHelpers();
+const nodeTypesStore = useNodeTypesStore();
 const isClearExecutionButtonVisible = useClearExecutionButtonVisible();
 const workflow = computed(() => workflowsStore.getCurrentWorkflow());
+const execution = computed(() => workflowsStore.workflowExecutionData);
+const debouncedExecutionData = refDebounced(execution, 100, { maxWait: 1000 });
 const executionTree = computed<TreeNode[]>(() =>
 	createLogEntries(
 		workflow.value,
-		workflowsStore.workflowExecutionData?.data?.resultData.runData ?? {},
+		debouncedExecutionData.value?.data?.resultData.runData ?? {},
+		nodeTypesStore.getNodeType,
 	),
 );
-const isEmpty = computed(() => workflowsStore.workflowExecutionData === null);
+const hasNoExecution = computed(() => execution.value === null);
 const switchViewOptions = computed(() => [
 	{ label: locale.baseText('logs.overview.header.switch.details'), value: 'details' as const },
 	{ label: locale.baseText('logs.overview.header.switch.overview'), value: 'overview' as const },
 ]);
-const execution = computed(() => workflowsStore.workflowExecutionData);
 const consumedTokens = computed(() =>
 	getTotalConsumedTokens(...executionTree.value.map(getSubtreeTotalConsumedTokens)),
 );
@@ -67,9 +72,9 @@ function handleClickNode(clicked: TreeNode) {
 
 	emit('select', clicked);
 	telemetry.track('User selected node in log view', {
-		node_type: workflowsStore.nodesByName[clicked.node].type,
-		node_id: workflowsStore.nodesByName[clicked.node].id,
-		execution_id: workflowsStore.workflowExecutionData?.id,
+		node_type: workflowsStore.nodesByName[clicked.node.name].type,
+		node_id: workflowsStore.nodesByName[clicked.node.name].id,
+		execution_id: execution.value?.id,
 		workflow_id: workflow.value.id,
 	});
 }
@@ -86,14 +91,14 @@ function handleToggleExpanded(treeNode: ElTreeNode) {
 }
 
 function handleOpenNdv(treeNode: TreeNode) {
-	ndvStore.setActiveNodeName(treeNode.node);
+	ndvStore.setActiveNodeName(treeNode.node.name);
 
 	// HACK: defer setting the output run index to not be overridden by other effects
 	requestAnimationFrame(() => ndvStore.setOutputRunIndex(treeNode.runIndex));
 }
 
 async function handleTriggerPartialExecution(treeNode: TreeNode) {
-	await runWorkflow.runWorkflow({ destinationNode: treeNode.node });
+	await runWorkflow.runWorkflow({ destinationNode: treeNode.node.name });
 }
 </script>
 
@@ -124,11 +129,11 @@ async function handleTriggerPartialExecution(treeNode: TreeNode) {
 		</PanelHeader>
 		<div
 			v-if="isOpen"
-			:class="[$style.content, isEmpty ? $style.empty : '']"
+			:class="[$style.content, hasNoExecution ? $style.empty : '']"
 			data-test-id="logs-overview-body"
 		>
 			<N8nText
-				v-if="isEmpty"
+				v-if="hasNoExecution"
 				tag="p"
 				size="medium"
 				color="text-base"
@@ -221,18 +226,19 @@ async function handleTriggerPartialExecution(treeNode: TreeNode) {
 }
 
 .scrollable {
-	padding: var(--spacing-2xs);
 	flex-grow: 1;
 	flex-shrink: 1;
 	overflow: auto;
 }
 
 .summary {
-	padding-block: var(--spacing-2xs);
+	margin-bottom: var(--spacing-4xs);
+	padding: var(--spacing-4xs) var(--spacing-2xs) 0 var(--spacing-2xs);
+	min-height: calc(30px + var(--spacing-s));
 }
 
 .tree {
-	margin-top: var(--spacing-2xs);
+	padding: 0 var(--spacing-2xs) var(--spacing-2xs) var(--spacing-2xs);
 
 	& :global(.el-icon) {
 		display: none;
@@ -245,5 +251,13 @@ async function handleTriggerPartialExecution(treeNode: TreeNode) {
 	right: 0;
 	top: 0;
 	margin: var(--spacing-2xs);
+	visibility: hidden;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+
+	.content:hover & {
+		visibility: visible;
+		opacity: 1;
+	}
 }
 </style>

@@ -31,7 +31,9 @@ const selectedRun: Ref<IAiData[]> = ref([]);
 const i18n = useI18n();
 
 function isTreeNodeSelected(node: TreeNode) {
-	return selectedRun.value.some((run) => run.node === node.node && run.runIndex === node.runIndex);
+	return selectedRun.value.some(
+		(run) => run.node === node.node.name && run.runIndex === node.runIndex,
+	);
 }
 
 function toggleTreeItem(node: { expanded: boolean }) {
@@ -40,7 +42,7 @@ function toggleTreeItem(node: { expanded: boolean }) {
 
 function onItemClick(data: TreeNode) {
 	const matchingRun = aiData.value?.find(
-		(run) => run.node === data.node && run.runIndex === data.runIndex,
+		(run) => run.node.name === data.node.name && run.runIndex === data.runIndex,
 	);
 	if (!matchingRun) {
 		selectedRun.value = [];
@@ -48,17 +50,11 @@ function onItemClick(data: TreeNode) {
 		return;
 	}
 
-	const selectedNodeRun = workflowsStore.getWorkflowResultDataByNodeName(data.node)?.[
-		data.runIndex
-	];
-	if (!selectedNodeRun) {
-		return;
-	}
 	selectedRun.value = [
 		{
-			node: data.node,
+			node: data.node.name,
 			runIndex: data.runIndex,
-			data: getReferencedData(selectedNodeRun, true, true),
+			data: getReferencedData(data.runData, true, true),
 		},
 	];
 }
@@ -83,9 +79,18 @@ const aiData = computed<AIResult[]>(() =>
 	createAiData(props.node.name, props.workflow, workflowsStore.getWorkflowResultDataByNodeName),
 );
 
-const executionTree = computed<TreeNode[]>(() =>
-	getTreeNodeData(props.node.name, props.workflow, aiData.value),
-);
+const executionTree = computed<TreeNode[]>(() => {
+	const taskData =
+		workflowsStore.workflowExecutionData?.data?.resultData.runData[props.node.name]?.[
+			props.runIndex
+		];
+
+	return taskData
+		? getTreeNodeData(props.node, taskData, props.workflow, aiData.value, undefined, (typeName) =>
+				nodeTypesStore.getNodeType(typeName),
+			)
+		: [];
+});
 
 watch(() => props.runIndex, selectFirst, { immediate: true });
 </script>
@@ -96,7 +101,6 @@ watch(() => props.runIndex, selectFirst, { immediate: true });
 			<div :class="{ [$style.tree]: true, [$style.slim]: slim }">
 				<ElTree
 					:data="executionTree"
-					:props="{ label: 'node' }"
 					default-expand-all
 					:indent="12"
 					:expand-on-click-node="false"
@@ -121,15 +125,15 @@ watch(() => props.runIndex, selectFirst, { immediate: true });
 							</button>
 							<n8n-tooltip :disabled="!slim" placement="right">
 								<template #content>
-									{{ node.label }}
+									{{ data.node.name }}
 								</template>
 								<span :class="$style.leafLabel">
 									<NodeIcon
-										:node-type="getNodeType(data.node)!"
+										:node-type="getNodeType(data.node.name)!"
 										:size="17"
 										:class="$style.nodeIcon"
 									/>
-									<span v-if="!slim" v-text="node.label" />
+									<span v-if="!slim" v-text="data.node.name" />
 								</span>
 							</n8n-tooltip>
 						</div>
