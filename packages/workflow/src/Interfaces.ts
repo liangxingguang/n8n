@@ -690,6 +690,12 @@ export interface BinaryHelperFunctions {
 	binaryToString(body: Buffer | Readable, encoding?: BufferEncoding): Promise<string>;
 	getBinaryPath(binaryDataId: string): string;
 	getBinaryStream(binaryDataId: string, chunkSize?: number): Promise<Readable>;
+	getBinarySignedUrl(binaryDataId: string): string;
+	// Any node to request a signature to download file
+	// /rest/binary?token=123453
+	// token to be jwt
+	// template to render link^
+	// similar to S3
 	getBinaryMetadata(binaryDataId: string): Promise<{
 		fileName?: string;
 		mimeType?: string;

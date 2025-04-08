@@ -3,6 +3,7 @@ import chardet from 'chardet';
 import FileType from 'file-type';
 import { IncomingMessage } from 'http';
 import iconv from 'iconv-lite';
+import jwt from 'jsonwebtoken';
 import { extension, lookup } from 'mime-types';
 import type {
 	BinaryHelperFunctions,
@@ -270,6 +271,12 @@ export async function prepareBinaryData(
 	return await setBinaryDataBuffer(returnData, binaryData, workflowId, executionId);
 }
 
+export function getBinarySignedUrl(binaryDataId: string): string {
+	const token = jwt.sign({ binaryDataId }, 'potato'); // use the same secret (ie: potato) to make sure it's signed by us
+
+	return `/rest/binary-data/signed?token=${token}`; // TODO fix this
+}
+
 export const getBinaryHelperFunctions = (
 	{ executionId }: IWorkflowExecuteAdditionalData,
 	workflowId: string,
@@ -279,6 +286,7 @@ export const getBinaryHelperFunctions = (
 	getBinaryMetadata,
 	binaryToBuffer,
 	binaryToString,
+	getBinarySignedUrl,
 	prepareBinaryData: async (binaryData, filePath, mimeType) =>
 		await prepareBinaryData(binaryData, executionId!, workflowId, filePath, mimeType),
 	setBinaryDataBuffer: async (data, binaryData) =>

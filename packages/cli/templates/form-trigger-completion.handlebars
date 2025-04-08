@@ -190,18 +190,25 @@
 				?	JSON.parse(decodeURIComponent("{{{responseBinary}}}"))
 				: '';
 
-			const byteArray = binary.data.type === 'Buffer'
-				? new Uint8Array(binary.data.data)
-				: Uint8Array.from(binary.data, c => c.charCodeAt(0));
+			console.log('binary', binary);
 
 			if (binary) {
-				const blob = new Blob(
-					[byteArray],
-					{ type: binary.type }
-				);
-
 				const link = document.createElement("a");
-				link.href = URL.createObjectURL(blob);
+
+				if (binary.binaryData) {
+					const byteArray = binary.binaryData ? Uint8Array.from(binary.binaryData, c => c.charCodeAt(0)) : '';
+
+					const blob = new Blob(
+						[byteArray],
+						{ type: binary.type }
+					);
+
+					link.href = URL.createObjectURL(blob);
+				} else {
+					link.href = `http://localhost:5678${binary.binaryUrl}`;
+				}
+
+
 				link.download = binary.fileName;
 				document.body.appendChild(link);
 

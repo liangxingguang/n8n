@@ -19,7 +19,7 @@ export class JwtService {
 			for (let i = 0; i < encryptionKey.length; i += 2) {
 				baseKey += encryptionKey[i];
 			}
-			this.jwtSecret = createHash('sha256').update(baseKey).digest('hex');
+			this.jwtSecret = createHash('sha256').update(baseKey).digest('hex'); // one of the many secrets
 			config.set('userManagement.jwtSecret', this.jwtSecret);
 		}
 	}

@@ -34,7 +34,8 @@
     "@types/lodash": "catalog:",
     "@types/mime-types": "^2.1.0",
     "@types/uuid": "catalog:",
-    "@types/xml2js": "catalog:"
+    "@types/xml2js": "catalog:",
+    "@types/jsonwebtoken": "^9.0.6"
   },
   "dependencies": {
     "@langchain/core": "catalog:",
@@ -42,6 +43,7 @@
     "@n8n/config": "workspace:*",
     "@n8n/di": "workspace:*",
     "@sentry/node": "catalog:",
+    "@types/jsonwebtoken": "^9.0.6",
     "aws4": "1.11.0",
     "axios": "catalog:",
     "callsites": "catalog:",

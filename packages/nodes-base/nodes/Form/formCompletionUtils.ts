@@ -9,14 +9,15 @@ import {
 } from 'n8n-workflow';
 
 import { sanitizeCustomCss, sanitizeHtml } from './utils';
+import { Readable } from 'node:stream';
 
 const getBinaryDataFromNode = (context: IWebhookFunctions, nodeName: string): IDataObject => {
 	return context.evaluateExpression(`{{ $('${nodeName}').first().binary }}`) as IDataObject;
 };
 
-export const binaryResponse = async (
+export const binaryResponse = (
 	context: IWebhookFunctions,
-): Promise<{ data: string | Buffer; fileName: string; type: string }> => {
+): { binaryData: string; binaryUrl: string; fileName: string; type: string } => {
 	const inputDataFieldName = context.getNodeParameter('inputDataFieldName', '') as string;
 	const parentNodes = context.getParentNodes(context.getNode().name);
 	const binaryNode = parentNodes.find((node) =>
@@ -25,18 +26,22 @@ export const binaryResponse = async (
 	if (!binaryNode) {
 		throw new OperationalError(`No binary data with field ${inputDataFieldName} found.`);
 	}
-	const binaryData = getBinaryDataFromNode(context, binaryNode?.name)[
+	const binaryDataFromNode = getBinaryDataFromNode(context, binaryNode?.name)[
 		inputDataFieldName
 	] as IBinaryData;
 
+	const binaryData = binaryDataFromNode.id ? '' : atob(binaryDataFromNode.data);
+	const binaryUrl = binaryDataFromNode.id
+		? context.helpers.getBinarySignedUrl(binaryDataFromNode.id)
+		: '';
+
 	return {
-		// If a binaryData has an id, the following field is set:
-		// N8N_DEFAULT_BINARY_DATA_MODE=filesystem
-		data: binaryData.id
-			? await context.helpers.binaryToBuffer(await context.helpers.getBinaryStream(binaryData.id))
-			: atob(binaryData.data),
-		fileName: binaryData.fileName ?? 'file',
-		type: binaryData.mimeType,
+		// If a binaryDataFromNode has an id, the following field is set:
+		// N8N_DEFAULT_BINARY_DATA_MODE=filesystem or s3 (non-memory)
+		binaryData,
+		binaryUrl,
+		fileName: binaryDataFromNode.fileName ?? 'file',
+		type: binaryDataFromNode.mimeType,
 	};
 };
 
@@ -54,9 +59,7 @@ export const renderFormCompletion = async (
 	};
 	const responseText = context.getNodeParameter('responseText', '') as string;
 	const binary =
-		context.getNodeParameter('respondWith', '') === 'returnBinary'
-			? await binaryResponse(context)
-			: '';
+		context.getNodeParameter('respondWith', '') === 'returnBinary' ? binaryResponse(context) : '';
 
 	let title = options.formTitle;
 	if (!title) {
